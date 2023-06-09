@@ -2,7 +2,9 @@ import css from './App.module.css';
 import Notiflix from 'notiflix';
 import SearchBar from './SearchBar/SearchBar';
 import ImageGallery from './ImageGallery/ImageGallery';
-import ImageGalleryItem from './ImageGalleryItem/ImageGalleryItem';
+import Button from './Button/Button';
+import Loader from './Loader/Loader';
+
 import { Component } from 'react';
 import fetchApi from './service/Api';
 
@@ -11,45 +13,58 @@ class App extends Component {
     searchQuery: '',
     images: [],
     page: 1,
-    selectedImage: null,
-    alt: null,
-    status: 'idle',
-    error: null,
+    totalPages: 0,
+    currentPage: 1,
+    isLoading: false,
   };
-  totalHits = null;
+
   NotiflixOptions = {
     distance: '2px',
     cssAnimationStyle: 'from-right',
     showOnlyTheLastOne: 'true',
   };
 
-  async componentDidUpdate(_, prevState) {
-    const { page, searchQuery } = this.state;
-    if (prevState.searchQuery !== searchQuery || prevState.page !== page) {
-      this.setState({ status: 'pending' });
+  componentDidUpdate(_, prevState) {
+    if (
+      // prevState.page !== this.state.page ||
+      prevState.searchQuery !== this.state.searchQuery ||
+      prevState.page !== this.state.page
+    ) {
+      this.getImages(this.state.searchQuery, this.state.page);
     }
+  }
 
+  loadMore = () => {
+    this.setState(prevState => ({
+      page: prevState.page + 1,
+    }));
+  };
+
+  getImages = async () => {
+    const { searchQuery, page } = this.state;
     try {
+      this.setState({ isLoading: true });
       const imageData = await fetchApi(searchQuery, page);
-      this.totalHits = imageData.total;
-      const ImagesHits = imageData.hits;
-
-      if (!ImagesHits) {
+      // this.totalHits = imageData.total;
+      const imagesHits = imageData.hits;
+      if (!imagesHits.length) {
         Notiflix.Notify.warning(
           'No results were found for your search, please try something else.',
           this.NotiflixOptions
         );
       }
-      this.setState(({ images }) => ({
-        images: [...images, ...ImagesHits],
-        status: 'resolved',
+
+      this.setState(prevState => ({
+        images: [...prevState.images, ...imagesHits],
+        totalPages: Math.ceil(imageData.totalHits / 12),
+        isLoading: false,
       }));
-      this.setState(console.log([...ImagesHits]));
     } catch (error) {
       console.error(`Sorry something went wrong. ${error.message}`);
-      this.setState({ status: 'rejected' });
+    } finally {
+      this.setState({ isLoading: false });
     }
-  }
+  };
 
   handleFormSubmit = searchQuery => {
     if (this.state.searchQuery === searchQuery) {
@@ -59,36 +74,34 @@ class App extends Component {
     this.setState({ searchQuery: searchQuery });
   };
 
-  handleSelectedImage = (largeImageUrl, tags) => {
-    this.setState({ selectedImage: largeImageUrl, alt: tags });
-  };
-
   resetState = () => {
     this.setState({
       searchQuery: '',
       page: 1,
       images: [],
-      selectedImage: null,
-      alt: null,
-      status: 'idle',
+      totalPages: 0,
     });
   };
 
   render() {
-    const { images } = this.state;
+    console.log(this.state.page);
+    const { images, totalPages, page, isLoading } = this.state;
     return (
       <div className={css.App}>
         <SearchBar onSubmit={this.handleFormSubmit} />
-        <ImageGallery>
-          {images.map(({ id, webformatURL, tags }) => (
-            <ImageGalleryItem
-              key={id}
-              previewImg={webformatURL}
-              tags={tags}
-              selectedImage={this.handleSelectedImage}
-            />
-          ))}
-        </ImageGallery>
+
+        {images.length > 0 ? (
+          <ImageGallery
+            images={images}
+            selectedImage={this.handleSelectedImage}
+          />
+        ) : null}
+
+        {isLoading ? <Loader /> : null}
+
+        {images.length > 0 && totalPages !== page && !isLoading ? (
+          <Button onClick={this.loadMore} />
+        ) : null}
       </div>
     );
   }
