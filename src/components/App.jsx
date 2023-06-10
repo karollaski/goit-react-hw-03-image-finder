@@ -26,7 +26,6 @@ class App extends Component {
 
   componentDidUpdate(_, prevState) {
     if (
-      // prevState.page !== this.state.page ||
       prevState.searchQuery !== this.state.searchQuery ||
       prevState.page !== this.state.page
     ) {
